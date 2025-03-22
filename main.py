@@ -12,11 +12,31 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ScamVue API")
 
-# Make sure this route is at the top, right after creating the app
+# Initialize model globally but lazily
+classifier = None
+
+@app.on_event("startup")
+async def startup_event():
+    global classifier
+    logger.info("Application startup")
+    try:
+        logger.info("Initializing ML model...")
+        classifier = pipeline("zero-shot-classification",
+                          model="facebook/bart-large-mnli")
+        logger.info("ML model initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing model: {e}")
+        # Still allow app to start even if model fails
+        pass
+
 @app.get("/")
 async def root():
     logger.info("Root endpoint called")
-    return {"message": "ScamVue API is running", "status": "ok"}
+    return {
+        "message": "ScamVue API is running",
+        "status": "ok",
+        "model_loaded": classifier is not None
+    }
 
 @app.get("/health")
 async def health_check():
@@ -31,10 +51,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Initialize model
-classifier = pipeline("zero-shot-classification",
-                     model="facebook/bart-large-mnli")
 
 class Message(BaseModel):
     message: str
@@ -170,12 +186,6 @@ async def analyze_message(message: Message):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# Add startup event
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Application startup")
-    logger.info("Initializing ML model...")
 
 if __name__ == "__main__":
     import uvicorn
