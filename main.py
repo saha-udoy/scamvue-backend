@@ -4,13 +4,24 @@ from transformers import pipeline
 from fastapi.middleware.cors import CORSMiddleware
 import re
 import os
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ScamVue API")
 
-# Add root route
+# Make sure this route is at the top, right after creating the app
 @app.get("/")
 async def root():
+    logger.info("Root endpoint called")
     return {"message": "ScamVue API is running", "status": "ok"}
+
+@app.get("/health")
+async def health_check():
+    logger.info("Health check endpoint called")
+    return {"status": "healthy"}
 
 # Update CORS for Chrome extension
 app.add_middleware(
@@ -159,6 +170,12 @@ async def analyze_message(message: Message):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Add startup event
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Application startup")
+    logger.info("Initializing ML model...")
 
 if __name__ == "__main__":
     import uvicorn
